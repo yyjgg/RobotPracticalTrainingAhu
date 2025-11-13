@@ -1,2 +1,0 @@
-%main file
-clc; clear;
