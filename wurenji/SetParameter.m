@@ -19,7 +19,7 @@ PWM_3 = 0;
 PWM_4 = 0;
 PWM_ALL = 0;
 %%% 圆形% 确定航轨点数目
-num_points =1000;
+num_points =100;
 heigh = 3;% 设置高度
 % 预先生成储存 x、y 位置的向量
 x = zeros (num_points,1);
