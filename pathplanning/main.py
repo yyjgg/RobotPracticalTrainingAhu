@@ -1,302 +1,661 @@
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import copy
+# from celluloid import Camera  # 保存动图时用，pip install celluloid
+# import math
+
+# class Config:
+#     """
+#     simulation parameter class
+#     """
+
+#     def __init__(self):
+#         # robot parameter
+#         # 线速度边界
+#         self.v_max = 1.0  # [m/s]
+#         self.v_min = -0.5  # [m/s]
+#         # 角速度边界
+#         self.w_max = 40.0 * math.pi / 180.0  # [rad/s]
+#         self.w_min = -40.0 * math.pi / 180.0  # [rad/s]
+#         # 线加速度和角加速度最大值
+#         self.a_vmax = 0.2  # [m/ss]
+#         self.a_wmax = 40.0 * math.pi / 180.0  # [rad/ss]
+#         # 采样分辨率 
+#         self.v_sample = 0.01  # [m/s]
+#         self.w_sample = 0.1 * math.pi / 180.0  # [rad/s]
+#         # 离散时间间隔
+#         self.dt = 0.1  # [s] Time tick for motion prediction
+#         # 轨迹推算时间长度
+#         self.predict_time = 3.0  # [s]
+#         # 轨迹评价函数系数
+#         self.alpha = 0.15
+#         self.beta = 1.0
+#         self.gamma = 1.0
+
+#         # Also used to check if goal is reached in both types
+#         self.robot_radius = 1.0  # [m] for collision check
+        
+#         self.judge_distance = 10 # 若与障碍物的最小距离大于阈值（例如这里设置的阈值为robot_radius+0.2）,则设为一个较大的常值
+
+#         # 障碍物位置 [x(m) y(m), ....]
+#         self.ob = np.array([[-1, -1],
+#                     [0, 2],
+#                     [4.0, 2.0],
+#                     [5.0, 4.0],
+#                     [5.0, 5.0],
+#                     [5.0, 6.0],
+#                     [5.0, 9.0],
+#                     [8.0, 9.0],
+#                     [7.0, 9.0],
+#                     [8.0, 10.0],
+#                     [9.0, 11.0],
+#                     [12.0, 13.0],
+#                     [12.0, 12.0],
+#                     [15.0, 15.0],
+#                     [13.0, 13.0]
+#                     ])
+#         # 目标点位置
+#         self.target = np.array([10,10])
+# def KinematicModel(state,control,dt):
+#   """机器人运动学模型
+
+#   Args:
+#       state (_type_): 状态量---x,y,yaw,v,w
+#       control (_type_): 控制量---v,w,线速度和角速度
+#       dt (_type_): 离散时间
+
+#   Returns:
+#       _type_: 下一步的状态
+#   """
+#   state[0] += control[0] * math.cos(state[2]) * dt
+#   state[1] += control[0] * math.sin(state[2]) * dt
+#   state[2] += control[1] * dt
+#   state[3] = control[0]
+#   state[4] = control[1]
+
+#   return state
+
+# class DWA:
+#     def __init__(self,config) -> None:
+#         """初始化
+
+#         Args:
+#             config (_type_): 参数类
+#         """
+#         self.dt=config.dt
+#         self.v_min=config.v_min
+#         self.w_min=config.w_min
+#         self.v_max=config.v_max
+#         self.w_max=config.w_max
+#         self.predict_time = config.predict_time
+#         self.a_vmax = config.a_vmax
+#         self.a_wmax = config.a_wmax
+#         self.v_sample = config.v_sample # 线速度采样分辨率
+#         self.w_sample = config.w_sample # 角速度采样分辨率
+#         self.alpha = config.alpha
+#         self.beta = config.beta
+#         self.gamma = config.gamma
+#         self.radius = config.robot_radius
+#         self.judge_distance = config.judge_distance
+
+#     def dwa_control(self,state,goal,obstacle):
+#         """滚动窗口算法入口
+
+#         Args:
+#             state (_type_): 机器人当前状态--[x,y,yaw,v,w]
+#             goal (_type_): 目标点位置，[x,y]
+
+#             obstacle (_type_): 障碍物位置，dim:[num_ob,2]
+
+#         Returns:
+#             _type_: 控制量、轨迹（便于绘画）
+#         """
+#         control,trajectory = self.trajectory_evaluation(state,goal,obstacle)
+#         return control,trajectory
+
+
+#     def cal_dynamic_window_vel(self,v,w,state,obstacle):
+#         """速度采样,得到速度空间窗口
+
+#         Args:
+#             v (_type_): 当前时刻线速度
+#             w (_type_): 当前时刻角速度
+#             state (_type_): 当前机器人状态
+#             obstacle (_type_): 障碍物位置
+#         Returns:
+#             [v_low,v_high,w_low,w_high]: 最终采样后的速度空间
+#         """
+#         Vm = self.__cal_vel_limit()
+#         Vd = self.__cal_accel_limit(v,w)
+#         Va = self.__cal_obstacle_limit(state,obstacle)
+#         a = max([Vm[0],Vd[0],Va[0]])
+#         b = min([Vm[1],Vd[1],Va[1]])
+#         c = max([Vm[2], Vd[2],Va[2]])
+#         d = min([Vm[3], Vd[3],Va[3]])
+#         return [a,b,c,d]
+
+#     def __cal_vel_limit(self):
+#         """计算速度边界限制Vm
+
+#         Returns:
+#             _type_: 速度边界限制后的速度空间Vm
+#         """
+#         return [self.v_min,self.v_max,self.w_min,self.w_max]
+    
+#     def __cal_accel_limit(self,v,w):
+#         """计算加速度限制Vd
+
+#         Args:
+#             v (_type_): 当前时刻线速度
+#             w (_type_): 当前时刻角速度
+#         Returns: 
+#             _type_:考虑加速度时的速度空间Vd
+#         """
+#         v_low = v-self.a_vmax*self.dt
+#         v_high = v+self.a_vmax*self.dt
+#         w_low = w-self.a_wmax*self.dt
+#         w_high = w+self.a_wmax*self.dt
+#         return [v_low, v_high,w_low, w_high]
+    
+#     def __cal_obstacle_limit(self,state,obstacle):
+#         """环境障碍物限制Va
+
+#         Args:
+#             state (_type_): 当前机器人状态
+#             obstacle (_type_): 障碍物位置
+
+#         Returns:
+#             _type_: 某一时刻移动机器人不与周围障碍物发生碰撞的速度空间Va
+#         """
+#         v_low=self.v_min
+#         v_high = np.sqrt(2*self._dist(state,obstacle)*self.a_vmax)
+#         w_low =self.w_min
+#         w_high = np.sqrt(2*self._dist(state,obstacle)*self.a_wmax)
+#         return [v_low,v_high,w_low,w_high]
+
+#     def trajectory_predict(self,state_init, v,w):
+#         """轨迹推算
+
+#         Args:
+#             state_init (_type_): 当前状态---x,y,yaw,v,w
+#             v (_type_): 当前时刻线速度
+#             w (_type_): 当前时刻线速度
+
+#         Returns:
+#             _type_: _description_
+#         """
+#         state = np.array(state_init)
+#         trajectory = state
+#         time = 0
+#         # 在预测时间段内
+#         while time <= self.predict_time:
+#             x = KinematicModel(state, [v,w], self.dt) # 运动学模型
+#             trajectory = np.vstack((trajectory, x))
+#             time += self.dt
+
+#         return trajectory
+
+#     def trajectory_evaluation(self,state,goal,obstacle):
+#         """轨迹评价函数,评价越高，轨迹越优
+
+#         Args:
+#             state (_type_): 当前状态---x,y,yaw,v,w
+#             dynamic_window_vel (_type_): 采样的速度空间窗口---[v_low,v_high,w_low,w_high]
+#             goal (_type_): 目标点位置，[x,y]
+#             obstacle (_type_): 障碍物位置，dim:[num_ob,2]
+
+#         Returns:
+#             _type_: 最优控制量、最优轨迹
+#         """
+#         G_max = -float('inf') # 最优评价
+#         trajectory_opt = state # 最优轨迹
+#         control_opt = [0.,0.] # 最优控制
+#         dynamic_window_vel = self.cal_dynamic_window_vel(state[3], state[4],state,obstacle) # 第1步--计算速度空间
+        
+#         # sum_heading,sum_dist,sum_vel = 0,0,0 # 统计全部采样轨迹的各个评价之和，便于评价的归一化
+#         # # 在本次实验中，不进行归一化也可实现该有的效果。
+#         # for v in np.arange(dynamic_window_vel[0],dynamic_window_vel[1],self.v_sample):
+#         #     for w in np.arange(dynamic_window_vel[2], dynamic_window_vel[3], self.w_sample):   
+#         #         trajectory = self.trajectory_predict(state, v, w)  
+
+#         #         heading_eval = self.alpha*self.__heading(trajectory,goal)
+#         #         dist_eval = self.beta*self.__dist(trajectory,obstacle)
+#         #         vel_eval = self.gamma*self.__velocity(trajectory)
+#         #         sum_vel+=vel_eval
+#         #         sum_dist+=dist_eval
+#         #         sum_heading +=heading_eval
+
+#         sum_heading,sum_dist,sum_vel = 1,1,1 # 不进行归一化
+#         # 在速度空间中按照预先设定的分辨率采样
+#         for v in np.arange(dynamic_window_vel[0],dynamic_window_vel[1],self.v_sample):
+#             for w in np.arange(dynamic_window_vel[2], dynamic_window_vel[3], self.w_sample):
+
+#                 trajectory = self.trajectory_predict(state, v, w)  # 第2步--轨迹推算
+
+#                 heading_eval = self.alpha*self.__heading(trajectory,goal)/sum_heading
+#                 dist_eval = self.beta*self.__dist(trajectory,obstacle)/sum_dist
+#                 vel_eval = self.gamma*self.__velocity(trajectory)/sum_vel
+#                 G = heading_eval+dist_eval+vel_eval # 第3步--轨迹评价
+
+#                 if G_max<=G:
+#                     G_max = G
+#                     trajectory_opt = trajectory
+#                     control_opt = [v,w]
+
+#         return control_opt, trajectory_opt
+
+#     def _dist(self,state,obstacle):
+#         """计算当前移动机器人距离障碍物最近的几何距离
+
+#         Args:
+#             state (_type_): 当前机器人状态
+#             obstacle (_type_): 障碍物位置
+
+#         Returns:
+#             _type_: 移动机器人距离障碍物最近的几何距离
+#         """
+#         ox = obstacle[:, 0]
+#         oy = obstacle[:, 1]
+#         dx = state[0,None] - ox[:, None]
+#         dy = state[1,None] - oy[:, None]
+#         r = np.hypot(dx, dy)
+#         return np.min(r)
+
+#     def __dist(self,trajectory,obstacle):
+#         """距离评价函数
+#         表示当前速度下对应模拟轨迹与障碍物之间的最近距离；
+#         如果没有障碍物或者最近距离大于设定的阈值，那么就将其值设为一个较大的常数值。
+#         Args:
+#             trajectory (_type_): 轨迹，dim:[n,5]
+            
+#             obstacle (_type_): 障碍物位置，dim:[num_ob,2]
+
+#         Returns:
+#             _type_: _description_
+#         """
+#         ox = obstacle[:, 0]
+#         oy = obstacle[:, 1]
+#         dx = trajectory[:, 0] - ox[:, None]
+#         dy = trajectory[:, 1] - oy[:, None]
+#         r = np.hypot(dx, dy)
+#         return np.min(r) if np.array(r <self.radius+0.2).any() else self.judge_distance
+
+#     def __heading(self,trajectory, goal):
+#         """方位角评价函数
+#         评估在当前采样速度下产生的轨迹终点位置方向与目标点连线的夹角的误差
+
+#         Args:
+#             trajectory (_type_): 轨迹，dim:[n,5]
+#             goal (_type_): 目标点位置[x,y]
+
+#         Returns:
+#             _type_: 方位角评价数值
+#         """
+#         dx = goal[0] - trajectory[-1, 0]
+#         dy = goal[1] - trajectory[-1, 1]
+#         error_angle = math.atan2(dy, dx)
+#         cost_angle = error_angle - trajectory[-1, 2]
+#         cost = math.pi-abs(cost_angle)
+
+#         return cost
+
+#     def __velocity(self,trajectory):
+#         """速度评价函数， 表示当前的速度大小，可以用模拟轨迹末端位置的线速度的大小来表示
+
+#         Args:
+#             trajectory (_type_): 轨迹，dim:[n,5]
+
+#         Returns:
+#             _type_: 速度评价
+#         """
+#         return trajectory[-1,3]
+
+# def plot_arrow(x, y, yaw, length=0.5, width=0.1):  # pragma: no cover
+#     plt.arrow(x, y, length * math.cos(yaw), length * math.sin(yaw),
+#               head_length=width, head_width=width)
+#     plt.plot(x, y)
+
+
+# def plot_robot(x, y, yaw, config):  # pragma: no cover
+#         circle = plt.Circle((x, y), config.robot_radius, color="b")
+#         plt.gcf().gca().add_artist(circle)
+#         out_x, out_y = (np.array([x, y]) +
+#                         np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
+#         plt.plot([x, out_x], [y, out_y], "-k")
+
+
+
+
+
+# def main(config):
+#     # initial state [x(m), y(m), yaw(rad), v(m/s), omega(rad/s)]
+#     x = np.array([0.0, 0.0, math.pi / 8.0, 0.0, 0.0])
+#     # goal position [x(m), y(m)]
+#     goal = config.target
+
+#     # input [forward speed, yaw_rate]
+
+#     trajectory = np.array(x)
+#     ob = config.ob
+#     dwa = DWA(config)
+#     fig=plt.figure(1)
+#     camera = Camera(fig)
+#     while True:
+#         u, predicted_trajectory = dwa.dwa_control(x,goal, ob)
+
+#         x = KinematicModel(x, u, config.dt)  # simulate robot
+#         trajectory = np.vstack((trajectory, x))  # store state history
+#         plt.cla()
+#         # for stopping simulation with the esc key.
+#         plt.gcf().canvas.mpl_connect(
+#             'key_release_event',
+#             lambda event: [exit(0) if event.key == 'escape' else None])
+#         plt.plot(predicted_trajectory[:, 0], predicted_trajectory[:, 1], "-g")
+#         plt.plot(x[0], x[1], "xr")
+#         plt.plot(goal[0], goal[1], "xb")
+#         plt.plot(ob[:, 0], ob[:, 1], "ok")
+#         plot_robot(x[0], x[1], x[2], config)
+#         plot_arrow(x[0], x[1], x[2])
+#         plt.axis("equal")
+#         plt.grid(True)
+#         plt.pause(0.001)
+
+#         # check reaching goal
+#         dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
+#         if dist_to_goal <= config.robot_radius:
+#             print("Goal!!")
+#             break
+#         # camera.snap()
+#         # print(x)
+#         # print(u)
+
+#     print("Done")
+#     plt.plot(trajectory[:, 0], trajectory[:, 1], "-r")
+#     plt.pause(0.001)
+#     # camera.snap()
+#     # animation = camera.animate()
+#     # animation.save('trajectory.gif')
+#     plt.show()
+
+
+# main(Config())
+import math
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib.patches import Circle
-import math
 
-# --------------------------
-# 1. 地图与机器人参数配置
-# --------------------------
-MAP_SIZE = 100  # 地图尺寸（100x100）
-ROBOT_RADIUS = 2.0  # 机器人半径（碰撞检测）
-MAX_V = 3.0  # 最大线速度
-MAX_W = 1.5  # 最大角速度
-DT = 0.1  # 时间步长（0.1秒）
-PREDICT_TIME = 2.0  # DWA预测时间（未来2秒轨迹）
-LOOK_AHEAD = 5  # 局部目标点超前步数
-
-# 生成随机静态障碍物（多边形）
-def generate_static_obstacles(count=8):
-    obstacles = []
-    for _ in range(count):
-        center = (np.random.uniform(10, MAP_SIZE-10), np.random.uniform(10, MAP_SIZE-10))
-        size = np.random.uniform(5, 15)
-        edges = np.random.randint(4, 8)  # 4-8边形
-        angles = np.sort(np.random.uniform(0, 2*math.pi, edges))
-        polygon = [(center[0] + size*math.cos(a), center[1] + size*math.sin(a)) for a in angles]
-        obstacles.append(polygon)
-    return obstacles
-
-# 生成动态障碍物（随机移动）
-def generate_dynamic_obstacles(count=3):
-    dynamics = []
-    for _ in range(count):
-        start_pos = (np.random.uniform(10, MAP_SIZE-10), np.random.uniform(10, MAP_SIZE-10))
-        speed = np.random.uniform(0.5, 1.5)
-        direction = np.random.uniform(0, 2*math.pi)
-        radius = np.random.uniform(1.5, 3.0)
-        dynamics.append({
-            'pos': start_pos,
-            'speed': speed,
-            'direction': direction,
-            'radius': radius
-        })
-    return dynamics
-
-# 初始化环境
-static_obstacles = generate_static_obstacles()
-dynamic_obstacles = generate_dynamic_obstacles()
-start = (5, 5)  # 起点
-goal = (90, 90)  # 终点
-robot_state = [start[0], start[1], 0.0, 0.0, 0.0]  # (x, y, 航向角, v, w)
-
-
-# --------------------------
-# 2. 全局路径规划（A*算法）
-# --------------------------
-def grid_from_polygons(polygons, size=MAP_SIZE):
-    """将多边形障碍物转换为网格地图（0=自由，1=障碍）"""
-    grid = np.zeros((size, size))
-    for poly in polygons:
-        # 扫描线填充多边形（简化版）
-        for x in range(size):
-            for y in range(size):
-                if point_in_polygon((x+0.5, y+0.5), poly):
-                    grid[x, y] = 1
-    return grid
-
-def point_in_polygon(point, polygon):
-    """判断点是否在多边形内（射线法）"""
-    x, y = point
-    n = len(polygon)
-    inside = False
-    for i in range(n):
-        j = (i + 1) % n
-        xi, yi = polygon[i]
-        xj, yj = polygon[j]
-        if ((yi > y) != (yj > y)):
-            x_intersect = (y - yi) * (xj - xi) / (yj - yi) + xi
-            if x < x_intersect:
-                inside = not inside
-    return inside
-
-def a_star(grid, start, goal):
-    """A*算法实现（网格坐标）"""
-    start = (int(start[0]), int(start[1]))
-    goal = (int(goal[0]), int(goal[1]))
-    open_list = [(0, start[0], start[1])]
-    came_from = {}
-    g_score = { (start[0], start[1]): 0 }
-    f_score = { (start[0], start[1]): heuristic(start, goal) }
-
-    while open_list:
-        open_list.sort()
-        _, x, y = open_list.pop(0)
-        current = (x, y)
-        if current == goal:
-            return reconstruct_path(came_from, current)
+# -----------------------------------------
+# 1. 配置参数类
+# -----------------------------------------
+class Config:
+    def __init__(self):
+        # 机器人参数
+        self.max_speed = 1.0  # [m/s]
+        self.min_speed = -0.5 # [m/s]
+        self.max_yaw_rate = 40.0 * math.pi / 180.0  # [rad/s]
+        self.max_accel = 0.2  # [m/ss]
+        self.max_delta_yaw_rate = 40.0 * math.pi / 180.0  # [rad/ss]
         
-        for dx, dy in [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1] and grid[nx, ny] == 0:
-                neighbor = (nx, ny)
-                tentative_g = g_score[current] + math.hypot(dx, dy)
-                if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                    came_from[neighbor] = current
-                    g_score[neighbor] = tentative_g
-                    f_score[neighbor] = tentative_g + heuristic(neighbor, goal)
-                    open_list.append((f_score[neighbor], nx, ny))
-    return None  # 无路径
+        # 采样分辨率
+        self.v_resolution = 0.01  # [m/s]
+        self.yaw_rate_resolution = 0.1 * math.pi / 180.0  # [rad/s]
+        
+        # 算法参数
+        self.dt = 0.1  # [s] Time tick for motion prediction
+        self.predict_time = 3.0  # [s]
+        self.to_goal_cost_gain = 0.15
+        self.speed_cost_gain = 1.0
+        self.obstacle_cost_gain = 1.0
+        self.robot_stuck_flag_cons = 0.001  # Check for stuck
 
-def heuristic(a, b):
-    """启发函数（欧氏距离）"""
-    return math.hypot(a[0]-b[0], a[1]-b[1])
+        self.robot_radius = 1.0  # [m]
+        self.robot_type = 0 # 0: Circle, 1: Rectangle (TODO)
 
-def reconstruct_path(came_from, current):
-    """回溯路径"""
-    path = [current]
-    while current in came_from:
-        current = came_from[current]
-        path.append(current)
-    return [(p[0]+0.5, p[1]+0.5) for p in reversed(path)]  # 转换为连续坐标
+        # 障碍物与目标
+        self.ob = np.array([
+            [-1, -1], [0, 2], [4.0, 2.0], [5.0, 4.0], [5.0, 5.0],
+            [5.0, 6.0], [5.0, 9.0], [8.0, 9.0], [7.0, 9.0], [8.0, 10.0],
+            [9.0, 11.0], [12.0, 13.0], [12.0, 12.0], [15.0, 15.0], [13.0, 13.0]
+        ])
+        self.target = np.array([10.0, 10.0])
 
-# 生成全局路径
-grid_map = grid_from_polygons(static_obstacles)
-global_path = a_star(grid_map, start, goal)
-if not global_path:
-    raise ValueError("无可行全局路径，请重新生成地图")
+# -----------------------------------------
+# 2. 基础工具函数
+# -----------------------------------------
+def motion(x, u, dt):
+    """
+    运动学模型更新状态
+    x: [x, y, yaw, v, w]
+    u: [v, w]
+    """
+    x[2] += u[1] * dt
+    x[0] += u[0] * math.cos(x[2]) * dt
+    x[1] += u[0] * math.sin(x[2]) * dt
+    x[3] = u[0]
+    x[4] = u[1]
+    return x
 
+def calc_dynamic_window(x, config):
+    """计算速度的动态窗口 [v_min, v_max, w_min, w_max]"""
+    # 1. 机器人自身物理限制
+    Vs = [config.min_speed, config.max_speed,
+          -config.max_yaw_rate, config.max_yaw_rate]
 
-# --------------------------
-# 3. 局部路径规划（DWA算法）
-# --------------------------
-def get_local_goal(robot_pos, global_path):
-    """从全局路径取局部目标点"""
-    distances = [math.hypot(x - robot_pos[0], y - robot_pos[1]) for (x, y) in global_path]
-    closest_idx = np.argmin(distances)
-    local_idx = min(closest_idx + LOOK_AHEAD, len(global_path)-1)
-    return global_path[local_idx]
+    # 2. 根据当前速度和加速度限制计算的可达窗口
+    Vd = [x[3] - config.max_accel * config.dt,
+          x[3] + config.max_accel * config.dt,
+          x[4] - config.max_delta_yaw_rate * config.dt,
+          x[4] + config.max_delta_yaw_rate * config.dt]
 
-def predict_trajectory(robot_state, v, w):
-    """预测未来轨迹"""
-    x, y, yaw, _, _ = robot_state
-    traj = []
-    for _ in range(int(PREDICT_TIME / DT)):
-        x += v * math.cos(yaw) * DT
-        y += v * math.sin(yaw) * DT
-        yaw += w * DT
-        traj.append((x, y))
-    return traj
+    # 3. 取交集
+    dw = [max(Vs[0], Vd[0]), min(Vs[1], Vd[1]),
+          max(Vs[2], Vd[2]), min(Vs[3], Vd[3])]
+    return dw
 
-def obstacle_cost(traj, static_obs, dynamic_obs):
-    """障碍物代价（距离越近代价越高）"""
-    min_dist = float('inf')
-    # 静态障碍物
-    for (x, y) in traj:
-        for poly in static_obs:
-            dist = point_to_polygon_dist((x, y), poly) - ROBOT_RADIUS
-            if dist < min_dist:
-                min_dist = dist
-        # 动态障碍物
-        for dyn in dynamic_obs:
-            dx = x - dyn['pos'][0]
-            dy = y - dyn['pos'][1]
-            dist = math.hypot(dx, dy) - (ROBOT_RADIUS + dyn['radius'])
-            if dist < min_dist:
-                min_dist = dist
-    return 1.0 / (min_dist + 1e-6) if min_dist > 0 else 1e6  # 碰撞时代价无穷大
+def predict_trajectory(x_init, v, w, config):
+    """根据给定的 v, w 预测未来一段时间的轨迹"""
+    x = np.array(x_init, copy=True)
+    trajectory = np.array(x)
+    time = 0
+    while time <= config.predict_time:
+        x = motion(x, [v, w], config.dt)
+        trajectory = np.vstack((trajectory, x))
+        time += config.dt
+    return trajectory
 
-def point_to_polygon_dist(point, polygon):
-    """点到多边形的最短距离"""
-    min_dist = float('inf')
-    x, y = point
-    n = len(polygon)
-    for i in range(n):
-        a = polygon[i]
-        b = polygon[(i+1)%n]
-        # 点到线段的距离
-        dist = point_to_segment_dist((x,y), a, b)
-        if dist < min_dist:
-            min_dist = dist
-    return min_dist
+def normalize_angle(angle):
+    """将角度标准化到 [-pi, pi]"""
+    while angle > math.pi:
+        angle -= 2.0 * math.pi
+    while angle < -math.pi:
+        angle += 2.0 * math.pi
+    return angle
 
-def point_to_segment_dist(p, a, b):
-    """点到线段的距离"""
-    px, py = p
-    ax, ay = a
-    bx, by = b
-    abx = bx - ax
-    aby = by - ay
-    apx = px - ax
-    apy = py - ay
-    dot = apx * abx + apy * aby
-    if dot <= 0:
-        return math.hypot(apx, apy)
-    ab_len_sq = abx**2 + aby**2
-    if dot >= ab_len_sq:
-        return math.hypot(px - bx, py - by)
-    t = dot / ab_len_sq
-    cx = ax + t * abx
-    cy = ay + t * aby
-    return math.hypot(px - cx, py - cy)
+# -----------------------------------------
+# 3. DWA 核心算法 (优化版)
+# -----------------------------------------
+def dwa_control(x, config, goal, ob):
+    """
+    DWA 主循环
+    x: 机器人当前状态
+    goal: 目标点
+    ob: 障碍物列表
+    """
+    dw = calc_dynamic_window(x, config)
+    
+    best_u = [0.0, 0.0]
+    min_cost = float("inf")
+    best_trajectory = np.array([x])
 
-def dwa_planner(robot_state, local_goal, static_obs, dynamic_obs):
-    """DWA算法：生成最优局部轨迹"""
-    best_score = -float('inf')
-    best_traj = []
-    v_samples = np.linspace(0, MAX_V, 10)  # 线速度采样
-    w_samples = np.linspace(-MAX_W, MAX_W, 20)  # 角速度采样
+    # 生成所有可能的轨迹
+    trajectories = []
+    
+    # 遍历速度空间
+    # 优化：使用 np.arange 生成序列，并确保包含边界
+    v_samples = np.arange(dw[0], dw[1], config.v_resolution)
+    w_samples = np.arange(dw[2], dw[3], config.yaw_rate_resolution)
+    
+    # 预计算所有轨迹及其原始 Cost
+    # 格式: [trajectory, heading_cost, speed_cost, ob_cost]
+    candidates = [] 
 
     for v in v_samples:
         for w in w_samples:
-            traj = predict_trajectory(robot_state, v, w)
-            # 评估轨迹
-            obs_cost = obstacle_cost(traj, static_obs, dynamic_obs)
-            goal_dist = math.hypot(traj[-1][0]-local_goal[0], traj[-1][1]-local_goal[1])
-            goal_cost = goal_dist
-            vel_cost = v  # 鼓励高速
-            # 总得分（最大化）
-            score = -0.5*goal_cost - 2.0*obs_cost + 0.3*vel_cost
-            if score > best_score:
-                best_score = score
-                best_traj = traj
-    return best_traj
+            trajectory = predict_trajectory(x, v, w, config)
 
+            # 1. 航向代价 (Heading Cost)
+            to_goal_cost = calc_to_goal_cost(trajectory, goal)
+            
+            # 2. 速度代价 (Speed Cost) - 我们希望速度越快越好，所以代价取反或取倒数
+            # 这里使用 (max_speed - current_speed) 作为代价，速度越快代价越小
+            speed_cost = config.max_speed - trajectory[-1, 3]
+            
+            # 3. 障碍物代价 (Obstacle Cost)
+            ob_cost = calc_obstacle_cost(trajectory, ob, config)
 
-# --------------------------
-# 4. 仿真可视化与主循环
-# --------------------------
-# 初始化画布
-fig, ax = plt.subplots(figsize=(10, 10))
-ax.set_xlim(0, MAP_SIZE)
-ax.set_ylim(0, MAP_SIZE)
-ax.set_title("全局+局部路径规划仿真 (A* + DWA)")
+            if ob_cost == float("inf"):
+                continue # 发生碰撞的轨迹直接丢弃
 
-# 绘制静态障碍物
-for poly in static_obstacles:
-    x = [p[0] for p in poly]
-    y = [p[1] for p in poly]
-    ax.fill(x, y, 'gray')
+            candidates.append([trajectory, to_goal_cost, speed_cost, ob_cost, v, w])
 
-# 绘制全局路径
-global_x = [p[0] for p in global_path]
-global_y = [p[1] for p in global_path]
-ax.plot(global_x, global_y, 'b--', linewidth=2, label='全局路径')
+    if not candidates:
+        # 如果所有路径都会碰撞，简单地让机器人停下或旋转（这里选择停下）
+        return [0.0, 0.0], np.array([x])
 
-# 动态绘制元素
-robot_dot, = ax.plot([], [], 'ro', markersize=10, label='机器人')
-local_traj, = ax.plot([], [], 'g-', linewidth=1.5, label='局部轨迹')
-dynamic_circles = [ax.add_patch(Circle((0,0), 0, color='red', alpha=0.5)) for _ in dynamic_obstacles]
-local_goal_dot, = ax.plot([], [], 'ko', markersize=8, label='局部目标')
+    # --- 关键优化：归一化代价 ---
+    # 提取各列
+    costs = np.array([c[1:4] for c in candidates])
+    
+    # 避免除零错误
+    sum_costs = np.sum(costs, axis=0)
+    if sum_costs[0] == 0: sum_costs[0] = 1.0
+    if sum_costs[1] == 0: sum_costs[1] = 1.0
+    if sum_costs[2] == 0: sum_costs[2] = 1.0
 
-ax.legend()
+    # 寻找加权代价最小的轨迹
+    for i, item in enumerate(candidates):
+        trajectory = item[0]
+        heading_c = item[1]
+        speed_c = item[2]
+        ob_c = item[3]
+        
+        # 归一化计算 Final Cost
+        final_cost = (config.to_goal_cost_gain * heading_c / sum_costs[0] +
+                      config.speed_cost_gain * speed_c / sum_costs[1] +
+                      config.obstacle_cost_gain * ob_c / sum_costs[2])
+        
+        if final_cost < min_cost:
+            min_cost = final_cost
+            best_u = [item[4], item[5]]
+            best_trajectory = trajectory
 
-def update(frame):
-    # 更新动态障碍物位置
-    for dyn, circle in zip(dynamic_obstacles, dynamic_circles):
-        # 随机转向
-        if np.random.random() < 0.05:
-            dyn['direction'] += np.random.uniform(-math.pi/4, math.pi/4)
-        # 移动
-        dx = dyn['speed'] * math.cos(dyn['direction']) * DT
-        dy = dyn['speed'] * math.sin(dyn['direction']) * DT
-        new_x = dyn['pos'][0] + dx
-        new_y = dyn['pos'][1] + dy
-        # 边界反弹
-        if new_x < 5 or new_x > MAP_SIZE-5:
-            dyn['direction'] = math.pi - dyn['direction']
-            new_x = dyn['pos'][0] - dx
-        if new_y < 5 or new_y > MAP_SIZE-5:
-            dyn['direction'] = -dyn['direction']
-            new_y = dyn['pos'][1] - dy
-        dyn['pos'] = (new_x, new_y)
-        circle.set_center((new_x, new_y))
-        circle.set_radius(dyn['radius'])
+    return best_u, best_trajectory
 
-    # 机器人规划与移动
-    global robot_state
-    robot_pos = (robot_state[0], robot_state[1])
-    # 获取局部目标
-    local_goal = get_local_goal(robot_pos, global_path)
-    # DWA规划局部轨迹
-    best_traj = dwa_planner(robot_state, local_goal, static_obstacles, dynamic_obstacles)
-    # 更新机器人状态（沿最优轨迹移动）
-    if best_traj and len(best_traj) > 1:
-        dx = best_traj[1][0] - best_traj[0][0]
-        dy = best_traj[1][1] - best_traj[0][1]
-        robot_state[0] = best_traj[1][0]
-        robot_state[1] = best_traj[1][1]
-        robot_state[2] = math.atan2(dy, dx)  # 更新航向角
-        robot_state[3] = math.hypot(dx, dy) / DT  # 线速度
-        robot_state[4] = (robot_state[2] - math.atan2(best_traj[0][1]-robot_pos[1], best_traj[0][0]-robot_pos[0])) / DT  # 角速度
+def calc_to_goal_cost(trajectory, goal):
+    """
+    计算航向代价：轨迹末端朝向与目标方向的偏差
+    """
+    dx = goal[0] - trajectory[-1, 0]
+    dy = goal[1] - trajectory[-1, 1]
+    error_angle = math.atan2(dy, dx)
+    cost_angle = error_angle - trajectory[-1, 2]
+    # 优化：确保角度在 [-pi, pi] 之间，取绝对值
+    cost = abs(normalize_angle(cost_angle))
+    return cost
 
-    # 更新绘图
-    robot_dot.set_data(robot_state[0], robot_state[1])
-    local_goal_dot.set_data(local_goal[0], local_goal[1])
-    if best_traj:
-        local_traj.set_data([p[0] for p in best_traj], [p[1] for p in best_traj])
-    return [robot_dot, local_traj, local_goal_dot] + dynamic_circles
+def calc_obstacle_cost(trajectory, ob, config):
+    """
+    计算障碍物代价：距离越近代价越大
+    """
+    # 将轨迹和障碍物转换为矩阵操作以加速计算
+    ox = ob[:, 0]
+    oy = ob[:, 1]
+    
+    # 计算轨迹上每个点到最近障碍物的距离
+    # 简化计算：只计算轨迹上所有点到所有障碍物的距离矩阵
+    # 这里使用一个简化版：遍历轨迹点
+    min_r = float("inf")
+    
+    for i in range(len(trajectory)):
+        x_pos = trajectory[i, 0]
+        y_pos = trajectory[i, 1]
+        
+        # 计算当前点到所有障碍物的距离
+        dx = x_pos - ox
+        dy = y_pos - oy
+        r = np.hypot(dx, dy)
+        
+        current_min = np.min(r)
+        if current_min < config.robot_radius:
+            return float("inf") # 碰撞
+        
+        if current_min < min_r:
+            min_r = current_min
+            
+    # 代价与距离成反比，或者简单地取倒数
+    return 1.0 / min_r if min_r > 0 else float("inf")
 
-# 启动动画（100ms/帧）
-ani = animation.FuncAnimation(fig, update, interval=100, blit=True, cache_frame_data=False)
-plt.show()
+# -----------------------------------------
+# 4. 主程序与绘图
+# -----------------------------------------
+def plot_robot(x, y, yaw, config):
+    """绘制机器人"""
+    circle = plt.Circle((x, y), config.robot_radius, color="b", fill=False)
+    plt.gcf().gca().add_artist(circle)
+    out_x, out_y = (np.array([x, y]) +
+                    np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
+    plt.plot([x, out_x], [y, out_y], "-k")
+
+def main():
+    print("DWA 优化版开始运行...")
+    config = Config()
+    
+    # 初始状态 [x, y, yaw, v, w]
+    x = np.array([0.0, 0.0, math.pi / 8.0, 0.0, 0.0])
+    
+    # 记录历史轨迹
+    trajectory = np.array([x])
+    
+    plt.figure(figsize=(10, 10))
+    
+    while True:
+        # 计算最优控制量
+        u, predicted_trajectory = dwa_control(x, config, config.target, config.ob)
+        
+        # 模拟机器人运动
+        x = motion(x, u, config.dt)
+        trajectory = np.vstack((trajectory, x))  # store state history
+        
+        # --- 绘图部分 ---
+        plt.cla()
+        
+        # 绘制预测轨迹 (绿色)
+        plt.plot(predicted_trajectory[:, 0], predicted_trajectory[:, 1], "-g")
+        # 绘制当前位置
+        plt.plot(x[0], x[1], "xr")
+        # 绘制目标
+        plt.plot(config.target[0], config.target[1], "xb")
+        # 绘制障碍物
+        plt.plot(config.ob[:, 0], config.ob[:, 1], "ok")
+        
+        # 绘制历史轨迹 (红色)
+        plt.plot(trajectory[:, 0], trajectory[:, 1], "-r")
+        
+        plot_robot(x[0], x[1], x[2], config)
+        
+        # 设置坐标轴
+        plt.axis("equal")
+        plt.grid(True)
+        plt.title(f"Speed: {x[3]:.2f} m/s")
+        plt.pause(0.001)
+        
+        # 判断是否到达目标
+        dist_to_goal = math.hypot(x[0] - config.target[0], x[1] - config.target[1])
+        if dist_to_goal <= config.robot_radius:
+            print("Goal Reached!!")
+            break
+
+    print("Done")
+    plt.show()
+
+if __name__ == '__main__':
+    main()
