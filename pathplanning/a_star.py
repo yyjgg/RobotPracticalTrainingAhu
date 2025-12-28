@@ -1,6 +1,6 @@
 import math
 import heapq
-import matplotlib.pyplot as plt  # 新增：用于绘图
+import matplotlib.pyplot as plt  
 
 class AStarPlanner:
     def __init__(self, ox, oy, resolution, rr):

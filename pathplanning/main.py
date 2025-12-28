@@ -15,7 +15,7 @@ show_animation = True
 ROBOT_RADIUS = 1.0
 GRID_SIZE = 2.0
 
-# 重规划常量
+# 重规划常量，检查机器人的速度or是否停滞
 STUCK_LINEAR_VELOCITY_THRESHOLD = 0.05 
 STUCK_COUNT_MAX = 5                     
 
@@ -119,7 +119,7 @@ def main():
         static_ox, static_oy, sx, sy, gx, gy = design_map_simple()
         is_dynamic_path_obs = False
 
-    # 1. A* 全局规划阶段
+    #A* 全局规划阶段
     ox_a_star = static_ox 
     oy_a_star = static_oy
 
@@ -148,7 +148,7 @@ def main():
         if show_animation: plt.show()
         return
 
-    # 2. 添加动态障碍物 (必须在 A* 运行后)
+    #添加动态障碍物 
     dynamic_ox, dynamic_oy = [], []
     if is_dynamic_path_obs:
         dynamic_ox, dynamic_oy = place_dynamic_obs_on_path(rx, ry)
@@ -175,7 +175,7 @@ def main():
             print("2. A* 全局路径已规划，DWA 将开始追踪。")
 
 
-    # 3. DWA 局部规划阶段
+    #DWA 局部规划阶段
     print("3. 开始 DWA 轨迹追踪...")
     
     x = np.array([sx, sy, math.pi / 8.0, 0.0, 0.0])
@@ -270,8 +270,8 @@ def main():
                 plt.plot(dynamic_ox, dynamic_oy, "or", markersize=5, label="动态障碍物")
                 
             # 3. 绘制起点、终点和局部目标
-            plt.plot(sx, sy, "og", label="起点") # 起点只需绘制一次，但为了图例可重复绘制
-            plt.plot(gx, gy, "xb", label="终点") # 终点也同理
+            plt.plot(sx, sy, "og", label="起点") 
+            plt.plot(gx, gy, "xb", label="终点") 
             plt.plot(local_goal[0], local_goal[1], "xg", markersize=8, label="局部目标") # 局部目标，加大标记
 
             # 4. 绘制 A* 全局路径
